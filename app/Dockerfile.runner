@@ -1,0 +1,14 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends chocolate-doom && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY DOOM1.WAD /doom/DOOM1.WAD
+WORKDIR /doom
+
+ENV SDL_VIDEODRIVER=dummy
+ENV SDL_AUDIODRIVER=dummy
+
+ENTRYPOINT ["/usr/games/chocolate-doom"]
+CMD ["-iwad", "DOOM1.WAD", "-timedemo", "demo1", "-nosound"]
