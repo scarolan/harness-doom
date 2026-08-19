@@ -1,7 +1,9 @@
 # DOOM - Deployed by Harness
 
-![DOOM Title Screen](screenshots/doom-title.png)
-![DOOM Gameplay](screenshots/doom-gameplay.png)
+<p align="center">
+  <img src="screenshots/doom-title.png" width="400" alt="DOOM Title Screen">
+  <img src="screenshots/doom-gameplay.png" width="400" alt="DOOM Gameplay">
+</p>
 
 > "Will it run DOOM?" — Every engineer, at every company, since 1993.
 
