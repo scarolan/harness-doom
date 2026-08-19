@@ -1,0 +1,164 @@
+pipeline:
+  name: doom-deploy
+  identifier: doom_deploy
+  projectIdentifier: <+variable.projectIdentifier>
+  orgIdentifier: <+variable.orgIdentifier>
+  tags: {}
+  properties:
+    ci:
+      codebase:
+        connectorRef: <+input>
+        repoName: harness-doom
+        build: <+input>
+  stages:
+    - stage:
+        name: Build DOOM
+        identifier: build_doom
+        type: CI
+        spec:
+          cloneCodebase: true
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: <+input>
+              namespace: harness-builds
+              automountServiceAccountToken: true
+          execution:
+            steps:
+              - step:
+                  type: BuildAndPushDockerRegistry
+                  name: Build and Push
+                  identifier: build_and_push
+                  spec:
+                    connectorRef: <+input>
+                    repo: <+input>
+                    tags:
+                      - build-<+pipeline.sequenceId>
+                      - latest
+                    dockerfile: app/Dockerfile
+                    context: app
+                    timeout: 15m
+    - stage:
+        name: Deploy to Dev
+        identifier: deploy_dev
+        type: Deployment
+        spec:
+          deploymentType: NativeHelm
+          service:
+            serviceRef: doom_svc
+            serviceInputs:
+              serviceDefinition:
+                type: NativeHelm
+                spec:
+                  artifacts:
+                    primary:
+                      primaryArtifactRef: doom_image
+                      sources:
+                        - identifier: doom_image
+                          type: DockerRegistry
+                          spec:
+                            tag: build-<+pipeline.sequenceId>
+          environment:
+            environmentRef: dev
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: <+input>
+          execution:
+            steps:
+              - step:
+                  type: HelmDeploy
+                  name: Deploy
+                  identifier: helm_deploy
+                  spec:
+                    timeout: 5m
+              - step:
+                  type: ShellScript
+                  name: Smoke Test
+                  identifier: smoke_test
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          echo "Waiting for DOOM to be ready..."
+                          sleep 10
+                          SVC_URL="http://harness-doom.doom.svc.cluster.local"
+                          for i in $(seq 1 5); do
+                            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SVC_URL/healthz" 2>/dev/null || echo "000")
+                            if [ "$STATUS" = "200" ]; then
+                              echo "DOOM is running! Health check passed."
+                              curl -s "$SVC_URL" | grep -qi "doom" && echo "DOOM page verified!" && exit 0
+                            fi
+                            echo "Attempt $i: status=$STATUS, retrying..."
+                            sleep 5
+                          done
+                          echo "DOOM failed to respond"
+                          exit 1
+                    timeout: 2m
+            rollbackSteps:
+              - step:
+                  type: HelmRollback
+                  name: Rollback
+                  identifier: rollback
+                  spec:
+                    timeout: 5m
+    - stage:
+        name: Approve for Production
+        identifier: approve_prod
+        type: Approval
+        spec:
+          execution:
+            steps:
+              - step:
+                  type: HarnessApproval
+                  name: Approve DOOM for Prod
+                  identifier: approve_doom
+                  spec:
+                    approvers:
+                      userGroups:
+                        - _project_all_users
+                      minimumCount: 1
+                    approverInputs: []
+                    message: "DOOM has been deployed to dev and smoke tests pass. Approve deployment to production?"
+                    timeout: 1d
+    - stage:
+        name: Deploy to Prod
+        identifier: deploy_prod
+        type: Deployment
+        spec:
+          deploymentType: NativeHelm
+          service:
+            serviceRef: doom_svc
+            serviceInputs:
+              serviceDefinition:
+                type: NativeHelm
+                spec:
+                  artifacts:
+                    primary:
+                      primaryArtifactRef: doom_image
+                      sources:
+                        - identifier: doom_image
+                          type: DockerRegistry
+                          spec:
+                            tag: build-<+pipeline.sequenceId>
+          environment:
+            environmentRef: prod
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: <+input>
+          execution:
+            steps:
+              - step:
+                  type: HelmDeploy
+                  name: Deploy
+                  identifier: helm_deploy_prod
+                  spec:
+                    timeout: 5m
+            rollbackSteps:
+              - step:
+                  type: HelmRollback
+                  name: Rollback
+                  identifier: rollback_prod
+                  spec:
+                    timeout: 5m
