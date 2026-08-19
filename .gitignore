@@ -1,5 +1,2 @@
 .env
-*.wad
-*.WAD
-doom-shareware.zip
 .DS_Store
