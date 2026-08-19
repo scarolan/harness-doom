@@ -44,6 +44,15 @@
             height: 400px;
             border: 2px solid #ff4444;
             box-shadow: 0 0 20px rgba(255, 68, 68, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        /* Hide js-dos overlay UI (save/load icons) */
+        #jsdos .sidebar-header, #jsdos .sidebar,
+        #jsdos [class*="save"], #jsdos [class*="load"],
+        #jsdos .jsdos-player-button,
+        #jsdos .button-save, #jsdos .button-load {
+            display: none !important;
         }
         .controls {
             margin-top: 15px;
@@ -91,11 +100,12 @@
         <p>Built, tested, and deployed through a Harness pipeline. Because we can.</p>
     </div>
 
-    <script src="https://v8.js-dos.com/latest/js-dos.js"></script>
+    <script src="https://unpkg.com/js-dos@8.4.1/dist/js-dos.js"></script>
     <script>
-        emulators.pathPrefix = "https://v8.js-dos.com/latest/";
         Dos(document.getElementById("jsdos"), {
             url: "/doom.jsdos",
+            pathPrefix: "https://unpkg.com/emulators@8.4.1/dist/",
+            autoStart: true,
         });
     </script>
 </body>
