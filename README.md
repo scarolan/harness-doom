@@ -141,6 +141,20 @@ Because every platform must answer the question. And because deploying a game fr
 
 All for a 32-year-old game that runs in DOSBox emulated in WebAssembly served by nginx deployed by Helm orchestrated by Harness triggered by a git push.
 
+## "But does it actually *run* DOOM?"
+
+Yes. For the pedants in the back: Harness doesn't just *deploy* DOOM — it *runs* DOOM.
+
+`app/Dockerfile.runner` builds a headless container with [Chocolate Doom](https://www.chocolate-doom.org/) (a faithful source port). When executed as a Kubernetes Job on the same infrastructure managed by the Harness delegate, it processes DOOM's built-in demo recording frame-by-frame:
+
+```
+timed 5026 gametics in 127 realtics (1385.118164 fps)
+```
+
+5,026 game frames rendered at 1,385 FPS on the delegate's cluster. The DOOM engine initialized, loaded the WAD, ran the renderer, ticked the game logic, and completed — all orchestrated by Harness. No browser, no WebAssembly, no tricks. Native DOOM binary, running on Harness compute.
+
+So to be precise: Harness *deploys* playable DOOM (the browser version) **and** *runs* DOOM (the headless timedemo). Both definitions are satisfied. You're welcome.
+
 ## License
 
 This repo's code is MIT licensed. DOOM shareware is freely distributable per id Software's original terms. The shareware WAD and executable are downloaded at build time and not stored in this repository.
