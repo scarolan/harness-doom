@@ -1,0 +1,6 @@
+apiVersion: v2
+name: doom-gate
+description: "DOOM approval gate — beat E1M1 to approve the pipeline"
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

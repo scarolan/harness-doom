@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "doom-gate.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "doom-gate.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "doom-gate.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "doom-gate.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: doom
+          image: "{{ .Values.game.image.repository }}:{{ .Values.game.image.tag }}"
+          imagePullPolicy: {{ .Values.game.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.gameTargetPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.game | nindent 12 }}
+        - name: gate-server
+          image: "{{ .Values.gateServer.image.repository }}:{{ .Values.gateServer.image.tag }}"
+          imagePullPolicy: {{ .Values.gateServer.image.pullPolicy }}
+          ports:
+            - name: gate
+              containerPort: {{ .Values.service.gateTargetPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: gate
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: gate
+            initialDelaySeconds: 1
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.gateServer | nindent 12 }}

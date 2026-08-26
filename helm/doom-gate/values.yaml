@@ -1,0 +1,42 @@
+replicaCount: 1
+
+game:
+  image:
+    repository: harness-doom-gate
+    tag: latest
+    pullPolicy: IfNotPresent
+
+gateServer:
+  image:
+    repository: doom-gate-server
+    tag: latest
+    pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+service:
+  type: NodePort
+  gamePort: 80
+  gameTargetPort: 8080
+  gameNodePort: 30666
+  gatePort: 8081
+  gateTargetPort: 8081
+  gateNodePort: 30667
+
+resources:
+  game:
+    limits:
+      cpu: 100m
+      memory: 64Mi
+    requests:
+      cpu: 50m
+      memory: 32Mi
+  gateServer:
+    limits:
+      cpu: 50m
+      memory: 32Mi
+    requests:
+      cpu: 25m
+      memory: 16Mi
+
+namespace: doom

@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "doom-gate.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "doom-gate.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.gamePort }}
+      targetPort: {{ .Values.service.gameTargetPort }}
+      nodePort: {{ .Values.service.gameNodePort }}
+      protocol: TCP
+      name: http
+    - port: {{ .Values.service.gatePort }}
+      targetPort: {{ .Values.service.gateTargetPort }}
+      nodePort: {{ .Values.service.gateNodePort }}
+      protocol: TCP
+      name: gate
+  selector:
+    {{- include "doom-gate.selectorLabels" . | nindent 4 }}

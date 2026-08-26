@@ -1,0 +1,247 @@
+pipeline:
+  name: doom-gate-deploy
+  identifier: doom_gate_deploy
+  projectIdentifier: <+variable.projectIdentifier>
+  orgIdentifier: <+variable.orgIdentifier>
+  tags:
+    bonus: "true"
+  description: |
+    The DOOM Gate Pipeline: beat E1M1 to approve the deployment to production.
+    No manual approval button — the only way through is to rip and tear.
+  properties:
+    ci:
+      codebase:
+        connectorRef: <+input>
+        repoName: harness-doom
+        build: <+input>
+  stages:
+    - stage:
+        name: Build DOOM Gate
+        identifier: build_doom_gate
+        type: CI
+        spec:
+          cloneCodebase: true
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: <+input>
+              namespace: harness-builds
+              automountServiceAccountToken: true
+          execution:
+            steps:
+              - parallel:
+                  - step:
+                      type: BuildAndPushDockerRegistry
+                      name: Build Game Image
+                      identifier: build_game
+                      spec:
+                        connectorRef: <+input>
+                        repo: <+input>
+                        tags:
+                          - gate-<+pipeline.sequenceId>
+                          - gate-latest
+                        dockerfile: app/Dockerfile.gate
+                        context: app
+                        timeout: 15m
+                  - step:
+                      type: BuildAndPushDockerRegistry
+                      name: Build Gate Server
+                      identifier: build_gate_server
+                      spec:
+                        connectorRef: <+input>
+                        repo: <+input>
+                        tags:
+                          - gate-<+pipeline.sequenceId>
+                          - gate-latest
+                        dockerfile: app/doom-gate/Dockerfile
+                        context: app/doom-gate
+                        timeout: 10m
+
+    - stage:
+        name: Deploy DOOM Gate
+        identifier: deploy_doom_gate
+        type: Deployment
+        spec:
+          deploymentType: NativeHelm
+          service:
+            serviceRef: doom_gate_svc
+            serviceInputs:
+              serviceDefinition:
+                type: NativeHelm
+                spec:
+                  artifacts:
+                    primary:
+                      primaryArtifactRef: doom_gate_image
+                      sources:
+                        - identifier: doom_gate_image
+                          type: DockerRegistry
+                          spec:
+                            tag: gate-<+pipeline.sequenceId>
+          environment:
+            environmentRef: dev
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: <+input>
+          execution:
+            steps:
+              - step:
+                  type: HelmDeploy
+                  name: Deploy
+                  identifier: helm_deploy_gate
+                  spec:
+                    timeout: 5m
+              - step:
+                  type: ShellScript
+                  name: Verify Gate is Running
+                  identifier: verify_gate
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          echo "Verifying DOOM Gate deployment..."
+                          GATE_URL="http://doom-gate.doom.svc.cluster.local:8081"
+                          GAME_URL="http://doom-gate.doom.svc.cluster.local"
+
+                          for i in $(seq 1 10); do
+                            GATE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$GATE_URL/healthz" 2>/dev/null || echo "000")
+                            GAME_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$GAME_URL/healthz" 2>/dev/null || echo "000")
+                            if [ "$GATE_STATUS" = "200" ] && [ "$GAME_STATUS" = "200" ]; then
+                              echo "DOOM Gate is ready!"
+                              echo "  Game: $GAME_URL (serve to players via NodePort 30666)"
+                              echo "  Gate: $GATE_URL/status"
+                              # Reset gate state for this pipeline run
+                              curl -s -X POST "$GATE_URL/reset"
+                              echo "Gate state reset. Waiting for someone to beat E1M1..."
+                              exit 0
+                            fi
+                            echo "  Attempt $i/10: gate=$GATE_STATUS game=$GAME_STATUS, retrying..."
+                            sleep 3
+                          done
+                          echo "DOOM Gate failed to start"
+                          exit 1
+                    timeout: 2m
+            rollbackSteps:
+              - step:
+                  type: HelmRollback
+                  name: Rollback
+                  identifier: rollback_gate
+                  spec:
+                    timeout: 5m
+
+    - stage:
+        name: "Beat E1M1 to Approve"
+        identifier: doom_gate_approval
+        type: CI
+        spec:
+          cloneCodebase: false
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: <+input>
+              namespace: harness-builds
+              automountServiceAccountToken: true
+          execution:
+            steps:
+              - step:
+                  type: ShellScript
+                  name: "Wait for E1M1 Completion"
+                  identifier: wait_for_doom
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          #!/bin/bash
+                          GATE_URL="http://doom-gate.doom.svc.cluster.local:8081"
+                          TIMEOUT=3600  # 1 hour max
+                          INTERVAL=5
+                          ELAPSED=0
+
+                          echo "============================================"
+                          echo "   DOOM APPROVAL GATE"
+                          echo "============================================"
+                          echo ""
+                          echo "   Pipeline is BLOCKED."
+                          echo ""
+                          echo "   To approve deployment to production,"
+                          echo "   someone must beat E1M1 (Hangar)."
+                          echo ""
+                          echo "   Play at: http://<node-ip>:30666"
+                          echo ""
+                          echo "   Polling gate server every ${INTERVAL}s..."
+                          echo "   Timeout: ${TIMEOUT}s"
+                          echo "============================================"
+                          echo ""
+
+                          while [ $ELAPSED -lt $TIMEOUT ]; do
+                            RESPONSE=$(curl -s "$GATE_URL/status" 2>/dev/null)
+                            COMPLETE=$(echo "$RESPONSE" | grep -o '"complete": *true')
+
+                            if [ -n "$COMPLETE" ]; then
+                              PLAYER=$(echo "$RESPONSE" | grep -o '"player": *"[^"]*"' | cut -d'"' -f4)
+                              echo ""
+                              echo "============================================"
+                              echo "   E1M1 COMPLETE!"
+                              echo ""
+                              echo "   Player: ${PLAYER:-Doomguy}"
+                              echo "   Response: $RESPONSE"
+                              echo ""
+                              echo "   Pipeline APPROVED. Proceeding to prod..."
+                              echo "============================================"
+                              exit 0
+                            fi
+
+                            printf "  [%4ds] Waiting for E1M1 completion...\r" $ELAPSED
+                            sleep $INTERVAL
+                            ELAPSED=$((ELAPSED + INTERVAL))
+                          done
+
+                          echo ""
+                          echo "TIMEOUT: Nobody beat E1M1 in ${TIMEOUT}s."
+                          echo "Pipeline REJECTED. Git gud."
+                          exit 1
+                    timeout: 65m
+
+    - stage:
+        name: Deploy to Prod
+        identifier: deploy_prod
+        type: Deployment
+        spec:
+          deploymentType: NativeHelm
+          service:
+            serviceRef: doom_svc
+            serviceInputs:
+              serviceDefinition:
+                type: NativeHelm
+                spec:
+                  artifacts:
+                    primary:
+                      primaryArtifactRef: doom_image
+                      sources:
+                        - identifier: doom_image
+                          type: DockerRegistry
+                          spec:
+                            tag: gate-<+pipeline.sequenceId>
+          environment:
+            environmentRef: prod
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: <+input>
+          execution:
+            steps:
+              - step:
+                  type: HelmDeploy
+                  name: Deploy to Production
+                  identifier: helm_deploy_prod
+                  spec:
+                    timeout: 5m
+            rollbackSteps:
+              - step:
+                  type: HelmRollback
+                  name: Rollback
+                  identifier: rollback_prod
+                  spec:
+                    timeout: 5m
