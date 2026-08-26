@@ -39,20 +39,50 @@
             font-size: 0.8em;
             margin-top: 10px;
         }
-        #jsdos {
-            width: 640px;
-            height: 400px;
+        #canvas {
+            width: 800px;
+            height: 500px;
             border: 2px solid #ff4444;
             box-shadow: 0 0 20px rgba(255, 68, 68, 0.3);
-            position: relative;
-            overflow: hidden;
+            cursor: crosshair;
+            image-rendering: pixelated;
         }
-        /* Hide js-dos overlay UI (save/load icons) */
-        #jsdos .sidebar-header, #jsdos .sidebar,
-        #jsdos [class*="save"], #jsdos [class*="load"],
-        #jsdos .jsdos-player-button,
-        #jsdos .button-save, #jsdos .button-load {
-            display: none !important;
+        .game-container {
+            position: relative;
+        }
+        #music-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #ccc;
+            font-size: 1.4em;
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.2s;
+        }
+        #music-toggle:hover {
+            border-color: #ff4444;
+            color: #fff;
+        }
+        #music-toggle.muted {
+            opacity: 0.5;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444;
+            font-size: 1.2em;
+            text-align: center;
         }
         .controls {
             margin-top: 15px;
@@ -83,30 +113,158 @@
         <span class="pipeline-badge">Deployed by Harness CI/CD</span>
     </div>
 
-    <div id="jsdos"></div>
+    <div class="game-container">
+        <button id="music-toggle" title="Toggle music">&#9835;</button>
+        <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+        <div class="loading" id="loading">Loading DOOM...<br><small>Click to start</small></div>
+    </div>
 
     <div class="controls">
         <p>
-            <kbd>Arrow Keys</kbd> Move |
+            <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move |
             <kbd>Ctrl</kbd> Fire |
             <kbd>Space</kbd> Open Door |
-            <kbd>Shift</kbd> Run
+            <kbd>Shift</kbd> Run |
+            <kbd>Mouse</kbd> Turn
         </p>
         <p style="margin-top: 8px;">Click the game area to capture mouse/keyboard</p>
     </div>
 
     <div class="footer">
-        <p>DOOM Shareware &copy; 1993 id Software | Emulated via js-dos</p>
+        <p>DOOM Shareware &copy; 1993 id Software | Compiled to WebAssembly via Emscripten</p>
         <p>Built, tested, and deployed through a Harness pipeline. Because we can.</p>
     </div>
 
-    <script src="https://unpkg.com/js-dos@8.4.1/dist/js-dos.js"></script>
     <script>
-        Dos(document.getElementById("jsdos"), {
-            url: "/doom.jsdos",
-            pathPrefix: "https://unpkg.com/emulators@8.4.1/dist/",
-            autoStart: true,
+        var canvas = document.getElementById('canvas');
+        var loadingEl = document.getElementById('loading');
+
+        // E1M1 Music Player
+        var musicAudio = new Audio('/e1m1.mp3');
+        musicAudio.loop = true;
+        musicAudio.volume = 0.45;
+        var musicPlaying = false;
+
+        function startMusic() {
+            if (musicPlaying) return;
+            musicPlaying = true;
+            musicAudio.play().catch(function() {});
+        }
+
+        document.getElementById('music-toggle').addEventListener('click', function(e) {
+            e.stopPropagation();
+            musicAudio.muted = !musicAudio.muted;
+            this.classList.toggle('muted', musicAudio.muted);
+            this.style.textDecoration = musicAudio.muted ? 'line-through' : 'none';
         });
+
+        canvas.addEventListener('click', function() {
+            canvas.requestPointerLock();
+            startMusic();
+        });
+
+        canvas.addEventListener('mousemove', function(e) {
+            if (document.pointerLockElement === canvas) {
+                Object.defineProperty(e, 'movementY', { value: 0 });
+            }
+        }, true);
+
+        window.doStuff = function() {};
+
+        loadingEl.textContent = 'Downloading game files...';
+
+        Promise.all([
+            fetch('/doom1.wad').then(r => r.arrayBuffer()),
+            fetch('/default.cfg').then(r => r.arrayBuffer())
+        ]).then(function(files) {
+            var wadData = new Uint8Array(files[0]);
+            var cfgData = new Uint8Array(files[1]);
+            loadingEl.textContent = 'Starting DOOM engine...';
+
+            var Module = {
+                canvas: canvas,
+                arguments: ['-iwad', 'doom1.wad', '-window', '-nomusic'],
+                locateFile: function(path, dir) {
+                    if (path.endsWith('.wasm')) return '/doom.wasm';
+                    return (dir || '/') + path;
+                },
+                preRun: [function() {
+                    FS.createDataFile('/', 'doom1.wad', wadData, true, false);
+                    FS.mkdirTree('/libsdl/doom-ws-wasm');
+                    FS.createDataFile('/libsdl/doom-ws-wasm', 'default.cfg', cfgData, true, false);
+                    FS.createDataFile('/libsdl/doom-ws-wasm', 'websockets-doom.cfg', cfgData, true, false);
+                }],
+                postRun: [],
+                print: function(text) { console.log('[DOOM]', text); },
+                printErr: function(text) { console.warn('[DOOM]', text); },
+                setStatus: function(text) {
+                    if (text) {
+                        loadingEl.textContent = text;
+                        loadingEl.style.display = 'block';
+                    } else {
+                        loadingEl.style.display = 'none';
+                    }
+                },
+                totalDependencies: 0,
+                monitorRunDependencies: function(left) {
+                    Module.totalDependencies = Math.max(Module.totalDependencies, left);
+                    if (left) {
+                        Module.setStatus('Loading WASM... (' + (Module.totalDependencies - left) + '/' + Module.totalDependencies + ')');
+                    } else {
+                        Module.setStatus('');
+                    }
+                }
+            };
+            window.Module = Module;
+
+            var script = document.createElement('script');
+            script.src = '/doom.js';
+            document.body.appendChild(script);
+        }).catch(function(err) {
+            loadingEl.innerHTML = 'Failed to load game files: ' + err;
+        });
+
+        // Patch WASD bindings in WASM memory after engine starts
+        var _patchInterval = setInterval(function() {
+            if (!window.Module || !window.Module.HEAPU8) return;
+            clearInterval(_patchInterval);
+            var heap32 = Module.HEAP32;
+            var mem = Module.HEAPU8;
+            function findStr(str) {
+                var bytes = [];
+                for (var c = 0; c < str.length; c++) bytes.push(str.charCodeAt(c));
+                bytes.push(0);
+                for (var i = 0; i < mem.length - bytes.length; i++) {
+                    var match = true;
+                    for (var j = 0; j < bytes.length; j++) {
+                        if (mem[i + j] !== bytes[j]) { match = false; break; }
+                    }
+                    if (match) return i;
+                }
+                return -1;
+            }
+            function patchKey(name, newValue) {
+                var addr = findStr(name);
+                if (addr === -1) return;
+                for (var i = 0; i < heap32.length - 8; i++) {
+                    if (heap32[i] === addr) {
+                        var ptr = heap32[i + 1];
+                        if (ptr > 1024 && ptr < mem.length - 4) {
+                            heap32[ptr >> 2] = newValue;
+                            return;
+                        }
+                    }
+                }
+            }
+            patchKey('key_strafeleft', 97);
+            patchKey('key_straferight', 100);
+            patchKey('key_up', 119);
+            patchKey('key_down', 115);
+            patchKey('key_left', 172);
+            patchKey('key_right', 174);
+            patchKey('key_use', 32);
+            patchKey('mouse_sensitivity', 10);
+        }, 1000);
     </script>
 </body>
 </html>
