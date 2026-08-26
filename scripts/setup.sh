@@ -37,6 +37,10 @@ echo ""
 echo "=== DOOM IS DEPLOYED ==="
 echo ""
 NODE_PORT=$(kubectl get svc "$RELEASE_NAME" -n "$NAMESPACE" -o jsonpath='{.spec.ports[0].nodePort}')
+
+# Port-forward for reliable access (NodePort can be flaky on WSL2)
+pkill -f "kubectl port-forward.*${NAMESPACE}.*${NODE_PORT}" 2>/dev/null || true
+kubectl port-forward -n "$NAMESPACE" svc/"$RELEASE_NAME" "${NODE_PORT}:80" --address 0.0.0.0 &>/dev/null &
 echo "Access DOOM at: http://localhost:${NODE_PORT}"
 echo ""
 echo "Rip and tear, until it is done."

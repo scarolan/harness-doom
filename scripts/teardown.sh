@@ -7,6 +7,9 @@ IMAGE_NAME="${DOOM_IMAGE:-harness-doom}"
 
 echo "=== TEARING DOWN DOOM ==="
 
+# Kill port-forward
+pkill -f "kubectl port-forward.*${NAMESPACE}" 2>/dev/null || true
+
 # Uninstall Helm release
 echo "[1/3] Uninstalling Helm release..."
 helm uninstall "$RELEASE_NAME" --namespace "$NAMESPACE" 2>/dev/null || echo "  (already removed)"
