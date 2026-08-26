@@ -189,7 +189,7 @@
 <body>
     <div class="header">
         <h1>DOOM</h1>
-        <p>Pipeline Approval Gate: Beat E1M1 to deploy to production</p>
+        <p>Pipeline Approval Gate: <span id="player-display">Beat E1M1 to deploy to production</span></p>
         <span class="pipeline-status" id="pipeline-status">PIPELINE WAITING — BEAT E1M1 TO APPROVE</span>
     </div>
 
@@ -218,7 +218,8 @@
 
     <div class="victory-overlay" id="victory-overlay">
         <h2>E1M1 COMPLETE</h2>
-        <p>Pipeline approved. Deploying to production...</p>
+        <p id="victory-text">Pipeline approved. Deploying to production...</p>
+        <p style="margin-top: 15px; color: #888; font-size: 0.8em;">Returning to lobby...</p>
     </div>
 
     <div class="footer">
@@ -227,10 +228,15 @@
     </div>
 
     <script>
-        const GATE_SERVER = window.location.origin.replace(/:\d+$/, ':30669');
+        const GATE_SERVER = window.location.origin.replace(/:(\d+)$/, (_, p) => ':' + (parseInt(p) + 1));
+        const params = new URLSearchParams(window.location.search);
+        const playerName = params.get('player') || 'Doomguy';
+        const playerDifficulty = parseInt(params.get('difficulty') || '3', 10);
         const pageLoadTime = Date.now();
         let levelComplete = false;
         let approvalSent = false;
+
+        document.getElementById('player-display').textContent = `${playerName} — Beat E1M1 to deploy to production`;
 
         const approveBtn = document.getElementById('approve-btn');
         const gatePanel = document.getElementById('gate-panel');
@@ -398,34 +404,38 @@
             levelComplete = true;
             approvalSent = true;
 
+            const elapsed = Math.round((Date.now() - pageLoadTime) / 1000);
+
             approveBtn.disabled = true;
             approveBtn.textContent = 'APPROVED!';
             approveBtn.classList.add('ready');
             gatePanel.classList.add('complete');
             gateTitle.textContent = 'E1M1 Complete — Pipeline Approved!';
-            gateDesc.textContent = 'Deployment proceeding to production.';
+            gateDesc.textContent = `${playerName} deployed to prod in ${elapsed}s. You're on the board!`;
             pipelineStatus.textContent = 'PIPELINE APPROVED — DEPLOYING TO PROD';
             pipelineStatus.classList.add('approved');
 
+            document.getElementById('victory-text').textContent =
+                `${playerName} deployed to production!`;
             victoryOverlay.classList.add('show');
-            setTimeout(() => victoryOverlay.classList.remove('show'), 4000);
 
             fetch(GATE_SERVER + '/complete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    player: 'Doomguy',
+                    player: playerName,
+                    difficulty: playerDifficulty,
                     method: method,
-                    elapsed: Math.round((Date.now() - pageLoadTime) / 1000)
+                    elapsed: elapsed
                 })
             }).then(r => r.json())
-              .then(data => console.log('[GATE] Server acknowledged:', data))
+              .then(data => {
+                  console.log('[GATE] Server acknowledged:', data);
+                  setTimeout(() => { window.location.href = '/'; }, 6000);
+              })
               .catch(err => {
                   console.warn('[GATE] Could not reach gate server:', err);
-                  console.warn('[GATE] gate server unreachable');
-                  approvalSent = false;
-                  levelComplete = false;
-                  enableManualApproval();
+                  setTimeout(() => { window.location.href = '/'; }, 6000);
               });
         }
     </script>

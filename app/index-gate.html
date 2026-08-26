@@ -49,12 +49,16 @@
             50% { opacity: 0.6; }
         }
         #jsdos {
-            width: 640px;
-            height: 400px;
+            width: 960px;
+            height: 600px;
             border: 2px solid #ff4444;
             box-shadow: 0 0 20px rgba(255, 68, 68, 0.3);
             position: relative;
-            overflow: hidden;
+        }
+        #jsdos canvas {
+            width: 100% !important;
+            height: 100% !important;
+            object-fit: contain;
         }
         #jsdos .sidebar-header, #jsdos .sidebar,
         #jsdos [class*="save"], #jsdos [class*="load"],
@@ -69,7 +73,7 @@
             border: 1px solid #444;
             border-radius: 8px;
             text-align: center;
-            max-width: 640px;
+            max-width: 960px;
             width: 100%;
         }
         .gate-panel h3 {
@@ -198,59 +202,10 @@
         <p>Beat the level. Approve the pipeline. Ship to prod. Because governance should be fun.</p>
     </div>
 
-    <!-- Input remapping: must load BEFORE js-dos so addEventListener is patched first -->
-    <script>
-        (function() {
-            const WASD = { 'KeyW': 'ArrowUp', 'KeyA': 'ArrowLeft', 'KeyS': 'ArrowDown', 'KeyD': 'ArrowRight' };
-            const CODES = { 'KeyW': 38, 'KeyA': 37, 'KeyS': 40, 'KeyD': 39 };
-
-            const origAdd = EventTarget.prototype.addEventListener;
-            EventTarget.prototype.addEventListener = function(type, fn, opts) {
-                if (!fn) return origAdd.call(this, type, fn, opts);
-
-                if (type === 'keydown' || type === 'keyup') {
-                    const wrapped = function(e) {
-                        if (WASD[e.code]) {
-                            const proxy = new Proxy(e, {
-                                get(t, p, r) {
-                                    if (p === 'code') return WASD[t.code];
-                                    if (p === 'key') return WASD[t.code];
-                                    if (p === 'keyCode' || p === 'which') return CODES[t.code];
-                                    const v = Reflect.get(t, p, t);
-                                    return typeof v === 'function' ? v.bind(t) : v;
-                                }
-                            });
-                            return fn.call(this, proxy);
-                        }
-                        return fn.call(this, e);
-                    };
-                    return origAdd.call(this, type, wrapped, opts);
-                }
-
-                if (type === 'mousemove') {
-                    const wrapped = function(e) {
-                        // Kill Y-axis: DOOM uses it for forward/back which is disorienting.
-                        // Turning (X-axis) passes through amplified for higher sensitivity.
-                        const proxy = new Proxy(e, {
-                            get(t, p, r) {
-                                if (p === 'movementY') return 0;
-                                if (p === 'movementX') return t.movementX * 2.5;
-                                const v = Reflect.get(t, p, t);
-                                return typeof v === 'function' ? v.bind(t) : v;
-                            }
-                        });
-                        return fn.call(this, proxy);
-                    };
-                    return origAdd.call(this, type, wrapped, opts);
-                }
-
-                return origAdd.call(this, type, fn, opts);
-            };
-        })();
-    </script>
+    <!-- WASD + mouse configured natively in default.cfg (novert=1, sensitivity=30) -->
     <script src="https://unpkg.com/js-dos@8.4.1/dist/js-dos.js"></script>
     <script>
-        const GATE_SERVER = window.location.origin.replace(/:(\d+)$/, ':30667');
+        const GATE_SERVER = window.location.origin.replace(/:(\d+)$/, (_, p) => ':' + (parseInt(p) + 1));
         const params = new URLSearchParams(window.location.search);
         const playerName = params.get('player') || 'Doomguy';
         const playerDifficulty = parseInt(params.get('difficulty') || '3', 10);

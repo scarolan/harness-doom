@@ -47,7 +47,10 @@ RUN cp src/websockets-doom.js /output-doom.js && \
 FROM nginx:1.27-alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY index-wasm.html /usr/share/nginx/html/index.html
+COPY index-lobby.html /usr/share/nginx/html/index.html
+COPY index-wasm.html /usr/share/nginx/html/play.html
+COPY leaderboard.html /usr/share/nginx/html/leaderboard.html
+COPY e1m1.mp3 /usr/share/nginx/html/e1m1.mp3
 COPY DOOM1.WAD /usr/share/nginx/html/doom1.wad
 COPY default.cfg /usr/share/nginx/html/default.cfg
 COPY --from=wasm-builder /output-doom.js /usr/share/nginx/html/doom.js

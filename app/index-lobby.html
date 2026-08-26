@@ -203,7 +203,7 @@
     </div>
 
     <script>
-        const GATE_SERVER = window.location.origin.replace(/:(\d+)$/, ':30667');
+        const GATE_SERVER = window.location.origin.replace(/:(\d+)$/, (_, p) => ':' + (parseInt(p) + 1));
         let selectedDifficulty = 3;
 
         function selectDifficulty(level) {

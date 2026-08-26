@@ -222,7 +222,7 @@ class GateHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     os.makedirs(DATA_DIR, exist_ok=True)
-    port = 8081
+    port = int(os.environ.get("PORT", "8081"))
     server = HTTPServer(("", port), GateHandler)
     print(f"[GATE] DOOM Gate Server listening on :{port}")
     print(f"[GATE] Harness API: {'configured' if HARNESS_API_KEY else 'NOT configured (set HARNESS_API_KEY)'}")

@@ -18,10 +18,10 @@ service:
   type: NodePort
   gamePort: 80
   gameTargetPort: 8080
-  gameNodePort: 30666
+  gameNodePort: 30668
   gatePort: 8081
   gateTargetPort: 8081
-  gateNodePort: 30667
+  gateNodePort: 30669
 
 resources:
   game:
