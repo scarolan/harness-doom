@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOOM Deployment Leaderboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a0a;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-size: 3.5em;
+            color: #ff4444;
+            text-shadow: 0 0 20px #ff0000, 0 0 40px #cc0000;
+            letter-spacing: 6px;
+        }
+        .header .sub {
+            color: #ff8c00;
+            font-size: 1.1em;
+            margin-top: 8px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+        .leaderboard {
+            width: 100%;
+            max-width: 900px;
+        }
+        .entry {
+            display: grid;
+            grid-template-columns: 60px 60px 1fr 120px 100px;
+            align-items: center;
+            padding: 20px 30px;
+            margin-bottom: 8px;
+            background: #151515;
+            border: 1px solid #222;
+            border-radius: 8px;
+            transition: all 0.5s;
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        .entry.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        .entry.latest {
+            border-color: #ff4444;
+            background: #1a1010;
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.2);
+        }
+        .entry .rank {
+            font-size: 1.8em;
+            color: #555;
+            font-weight: bold;
+        }
+        .entry.latest .rank {
+            color: #ff4444;
+        }
+        .entry .emoji {
+            font-size: 2em;
+        }
+        .entry .player {
+            font-size: 1.4em;
+            color: #fff;
+            padding-left: 10px;
+        }
+        .entry .time {
+            font-size: 1.2em;
+            color: #ff8c00;
+            text-align: right;
+        }
+        .entry .when {
+            font-size: 0.8em;
+            color: #555;
+            text-align: right;
+        }
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #444;
+            font-size: 1.3em;
+        }
+        .empty-state .big {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+        .footer {
+            margin-top: auto;
+            padding-top: 40px;
+            text-align: center;
+            color: #333;
+            font-size: 0.8em;
+        }
+        .pulse {
+            animation: glow 2s ease-in-out infinite;
+        }
+        @keyframes glow {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-30px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>DOOM</h1>
+        <div class="sub">Deployment Leaderboard</div>
+    </div>
+
+    <div class="leaderboard" id="leaderboard">
+        <div class="empty-state" id="empty-state">
+            <div class="big">💀</div>
+            <p>No deployments yet.</p>
+            <p class="pulse" style="margin-top: 10px; color: #ff4444;">Waiting for someone to rip and tear...</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        Beat E1M1 → Approve the pipeline → Deploy to prod → Get on the board
+    </div>
+
+    <script>
+        const GATE_SERVER = window.location.origin.replace(/:(\d+)$/, ':30667');
+        let lastCount = 0;
+
+        function formatTime(seconds) {
+            if (!seconds) return '--';
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return m > 0 ? `${m}m ${s}s` : `${s}s`;
+        }
+
+        function formatWhen(timestamp) {
+            if (!timestamp) return '';
+            const d = new Date(timestamp);
+            const now = new Date();
+            const diffMs = now - d;
+            const diffMin = Math.floor(diffMs / 60000);
+            if (diffMin < 1) return 'just now';
+            if (diffMin < 60) return `${diffMin}m ago`;
+            const diffHr = Math.floor(diffMin / 60);
+            if (diffHr < 24) return `${diffHr}h ago`;
+            return d.toLocaleDateString();
+        }
+
+        function renderLeaderboard(entries) {
+            const container = document.getElementById('leaderboard');
+            const emptyState = document.getElementById('empty-state');
+
+            if (!entries || entries.length === 0) {
+                if (emptyState) emptyState.style.display = 'block';
+                return;
+            }
+
+            const isNew = entries.length > lastCount;
+            lastCount = entries.length;
+
+            // Show most recent first
+            const reversed = [...entries].reverse();
+
+            let html = '';
+            reversed.forEach((entry, i) => {
+                const isLatest = i === 0;
+                html += `
+                    <div class="entry ${isLatest ? 'latest' : ''} visible" style="animation-delay: ${i * 0.1}s">
+                        <span class="rank">#${reversed.length - i}</span>
+                        <span class="emoji">${entry.emoji || '😤'}</span>
+                        <span class="player">${escapeHtml(entry.player)}</span>
+                        <span class="time">${formatTime(entry.elapsed)}</span>
+                        <span class="when">${formatWhen(entry.timestamp)}</span>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function poll() {
+            fetch(GATE_SERVER + '/leaderboard')
+                .then(r => r.json())
+                .then(data => renderLeaderboard(data.entries))
+                .catch(() => {});
+        }
+
+        poll();
+        setInterval(poll, 5000);
+    </script>
+</body>
+</html>

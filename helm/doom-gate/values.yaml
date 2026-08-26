@@ -40,3 +40,11 @@ resources:
       memory: 16Mi
 
 namespace: doom
+
+harness:
+  apiKey: ""
+  accountId: ""
+  orgId: ""
+  projectId: ""
+  pipelineId: "doom_gate_deploy"
+  baseUrl: "https://app.harness.io"

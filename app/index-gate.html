@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DOOM Gate — Beat E1M1 to Approve</title>
+    <title>DOOM Gate — Beat E1M1 to Deploy</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -163,7 +163,7 @@
 <body>
     <div class="header">
         <h1>DOOM</h1>
-        <p>Pipeline Approval Gate: Beat E1M1 to deploy to production</p>
+        <p>Pipeline Approval Gate: <span id="player-display">Beat E1M1 to deploy to production</span></p>
         <span class="pipeline-status" id="pipeline-status">PIPELINE WAITING — BEAT E1M1 TO APPROVE</span>
     </div>
 
@@ -178,17 +178,19 @@
 
     <div class="controls">
         <p>
-            <kbd>Arrow Keys</kbd> Move |
+            <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move |
             <kbd>Ctrl</kbd> Fire |
             <kbd>Space</kbd> Open Door |
-            <kbd>Shift</kbd> Run
+            <kbd>Shift</kbd> Run |
+            <kbd>Mouse</kbd> Turn
         </p>
         <p style="margin-top: 8px;">Click the game area to capture mouse/keyboard</p>
     </div>
 
     <div class="victory-overlay" id="victory-overlay">
         <h2>E1M1 COMPLETE</h2>
-        <p>Pipeline approved. Deploying to production...</p>
+        <p id="victory-text">Pipeline approved. Deploying to production...</p>
+        <p style="margin-top: 15px; color: #888; font-size: 0.8em;" id="victory-sub">Returning to lobby...</p>
     </div>
 
     <div class="footer">
@@ -196,16 +198,70 @@
         <p>Beat the level. Approve the pipeline. Ship to prod. Because governance should be fun.</p>
     </div>
 
+    <!-- Input remapping: must load BEFORE js-dos so addEventListener is patched first -->
+    <script>
+        (function() {
+            const WASD = { 'KeyW': 'ArrowUp', 'KeyA': 'ArrowLeft', 'KeyS': 'ArrowDown', 'KeyD': 'ArrowRight' };
+            const CODES = { 'KeyW': 38, 'KeyA': 37, 'KeyS': 40, 'KeyD': 39 };
+
+            const origAdd = EventTarget.prototype.addEventListener;
+            EventTarget.prototype.addEventListener = function(type, fn, opts) {
+                if (!fn) return origAdd.call(this, type, fn, opts);
+
+                if (type === 'keydown' || type === 'keyup') {
+                    const wrapped = function(e) {
+                        if (WASD[e.code]) {
+                            const proxy = new Proxy(e, {
+                                get(t, p, r) {
+                                    if (p === 'code') return WASD[t.code];
+                                    if (p === 'key') return WASD[t.code];
+                                    if (p === 'keyCode' || p === 'which') return CODES[t.code];
+                                    const v = Reflect.get(t, p, t);
+                                    return typeof v === 'function' ? v.bind(t) : v;
+                                }
+                            });
+                            return fn.call(this, proxy);
+                        }
+                        return fn.call(this, e);
+                    };
+                    return origAdd.call(this, type, wrapped, opts);
+                }
+
+                if (type === 'mousemove') {
+                    const wrapped = function(e) {
+                        // Kill Y-axis: DOOM uses it for forward/back which is disorienting.
+                        // Turning (X-axis) passes through amplified for higher sensitivity.
+                        const proxy = new Proxy(e, {
+                            get(t, p, r) {
+                                if (p === 'movementY') return 0;
+                                if (p === 'movementX') return t.movementX * 2.5;
+                                const v = Reflect.get(t, p, t);
+                                return typeof v === 'function' ? v.bind(t) : v;
+                            }
+                        });
+                        return fn.call(this, proxy);
+                    };
+                    return origAdd.call(this, type, wrapped, opts);
+                }
+
+                return origAdd.call(this, type, fn, opts);
+            };
+        })();
+    </script>
     <script src="https://unpkg.com/js-dos@8.4.1/dist/js-dos.js"></script>
     <script>
-        const GATE_SERVER = window.location.origin.replace(/:\d+$/, ':8081');
-        let gameStarted = false;
-        let gameStartTime = null;
+        const GATE_SERVER = window.location.origin.replace(/:(\d+)$/, ':30667');
+        const params = new URLSearchParams(window.location.search);
+        const playerName = params.get('player') || 'Doomguy';
+        const playerDifficulty = parseInt(params.get('difficulty') || '3', 10);
+        const pageLoadTime = Date.now();
         let levelComplete = false;
         let approvalSent = false;
         let hudDetectedCount = 0;
         let noHudCount = 0;
-        let checkInterval = null;
+        let intermissionCount = 0;
+
+        document.getElementById('player-display').textContent = `${playerName} — Beat E1M1 to deploy to production`;
 
         const approveBtn = document.getElementById('approve-btn');
         const detectionStatus = document.getElementById('detection-status');
@@ -215,122 +271,117 @@
         const pipelineStatus = document.getElementById('pipeline-status');
         const victoryOverlay = document.getElementById('victory-overlay');
 
-        // Start DOOM
+        // Start DOOM (fire-and-forget — js-dos v8 Dos() doesn't reliably return a CI)
         Dos(document.getElementById("jsdos"), {
             url: "/doom.jsdos",
             pathPrefix: "https://unpkg.com/emulators@8.4.1/dist/",
             autoStart: true,
-        }).then(ci => {
-            gameStarted = true;
-            gameStartTime = Date.now();
-            detectionStatus.textContent = 'Auto-detection: active — playing...';
-            startLevelDetection(ci);
         });
 
-        function startLevelDetection(ci) {
-            // DOOM's status bar occupies the bottom ~32px of the 200px-high game screen.
-            // During gameplay, this area contains the HUD (ammo, health, face, armor).
-            // During the intermission screen, the entire screen changes to show stats.
-            //
-            // Detection strategy:
-            // 1. Sample pixels from where the HUD status bar normally lives
-            // 2. The HUD has distinctive dark grey/brown tones with green numbers
-            // 3. When these pixels change to the intermission pattern, level is complete
-            //
-            // We also require minimum gameplay time (30s) to avoid false triggers
-            // from the title screen or menu.
+        // Level completion detection via HUD PRESENCE.
+        //
+        // DOOM's status bar has a distinctive GREY STONE TEXTURE background.
+        // It's neutral grey (R ≈ G ≈ B, all in the 70-170 range, low saturation).
+        //
+        // The intermission screen bottom area has warm BROWN terrain and RED text —
+        // these are saturated colors (R >> G or R >> B), clearly not neutral grey.
+        //
+        // Detection: high ratio of neutral grey pixels in bottom 16% = HUD = gameplay.
+        // When this ratio drops (after confirmed gameplay) = HUD gone = level complete.
+        //
+        // js-dos uses a WEBGL canvas — we copy to a separate 2D canvas to read pixels.
 
-            checkInterval = setInterval(() => {
-                if (levelComplete) return;
+        let hudPresentCount = 0;
+        let hudAbsentCount = 0;
 
-                const canvas = document.querySelector('#jsdos canvas');
-                if (!canvas) return;
+        const offscreen = document.createElement('canvas');
+        const offCtx = offscreen.getContext('2d', { willReadFrequently: true });
 
-                const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                if (!ctx) return;
+        setInterval(() => {
+            if (levelComplete) return;
 
-                const w = canvas.width;
-                const h = canvas.height;
-                if (w === 0 || h === 0) return;
+            const canvas = document.querySelector('#jsdos canvas');
+            if (!canvas || canvas.width === 0 || canvas.height === 0) {
+                detectionStatus.textContent = 'HUD scan: waiting for canvas...';
+                return;
+            }
 
-                // Sample the bottom 15% of the screen (HUD area in gameplay)
-                const hudY = Math.floor(h * 0.85);
-                const sampleHeight = h - hudY;
-                const imageData = ctx.getImageData(0, hudY, w, sampleHeight);
-                const pixels = imageData.data;
+            // Copy WebGL canvas → offscreen 2D canvas
+            if (offscreen.width !== canvas.width || offscreen.height !== canvas.height) {
+                offscreen.width = canvas.width;
+                offscreen.height = canvas.height;
+            }
+            offCtx.drawImage(canvas, 0, 0);
 
-                // During gameplay, the HUD has specific characteristics:
-                // - Dark background (grey/brown tones, typically R:40-100, G:40-80, B:30-60)
-                // - Contains the status bar face (flesh tones around center)
-                // - Has green/yellow number readouts
-                //
-                // During intermission:
-                // - The area shows the tiled background + stats text
-                // - Generally lighter/different color distribution
-                // - No green HUD numbers
+            const w = offscreen.width;
+            const h = offscreen.height;
 
-                let darkPixels = 0;
-                let greenishPixels = 0;
-                let totalSamples = 0;
+            // Sample the bottom 16% — the HUD status bar zone
+            const hudTop = Math.floor(h * 0.84);
+            const imageData = offCtx.getImageData(0, hudTop, w, h - hudTop);
+            const px = imageData.data;
 
-                // Sample every 4th pixel for performance
-                for (let i = 0; i < pixels.length; i += 16) {
-                    const r = pixels[i];
-                    const g = pixels[i + 1];
-                    const b = pixels[i + 2];
-                    totalSamples++;
+            let neutralGreyPixels = 0;
+            let totalSampled = 0;
 
-                    // Dark pixels typical of HUD background
-                    if (r < 80 && g < 80 && b < 80) {
-                        darkPixels++;
-                    }
-                    // Greenish pixels from HUD numbers/indicators
-                    if (g > r + 20 && g > b + 20 && g > 80) {
-                        greenishPixels++;
-                    }
+            for (let i = 0; i < px.length; i += 32) {
+                const r = px[i];
+                const g = px[i + 1];
+                const b = px[i + 2];
+                totalSampled++;
+
+                // Neutral grey: all channels close together, medium brightness.
+                // The stone texture sits in RGB ~(70-170) with channels within 30 of each other.
+                const max = Math.max(r, g, b);
+                const min = Math.min(r, g, b);
+                const spread = max - min;
+                if (spread < 35 && max > 60 && max < 180) {
+                    neutralGreyPixels++;
                 }
+            }
 
-                const darkRatio = darkPixels / totalSamples;
-                const greenRatio = greenishPixels / totalSamples;
+            const greyRatio = totalSampled > 0 ? neutralGreyPixels / totalSampled : 0;
+            const elapsed = (Date.now() - pageLoadTime) / 1000;
 
-                // HUD is present when bottom area is mostly dark with some green
-                const hudPresent = darkRatio > 0.4 && greenRatio > 0.02;
+            // HUD present: stone texture means ~25-50% of bottom pixels are neutral grey.
+            // Intermission/menu: warm browns and reds, grey ratio drops below ~15%.
+            const hudVisible = greyRatio > 0.18;
 
-                if (hudPresent) {
-                    hudDetectedCount++;
-                    noHudCount = 0;
-                } else {
-                    noHudCount++;
-                }
+            if (hudVisible) {
+                hudPresentCount++;
+                hudAbsentCount = 0;
+            } else {
+                hudAbsentCount++;
+            }
 
-                const elapsed = (Date.now() - gameStartTime) / 1000;
+            // Level complete:
+            // 1. At least 25s elapsed (skip boot/title)
+            // 2. HUD confirmed for 8+ checks (~16s of gameplay)
+            // 3. HUD gone for 4+ consecutive checks (~8s)
+            if (elapsed > 25 && hudPresentCount >= 8 && hudAbsentCount >= 4) {
+                onLevelComplete('auto');
+                return;
+            }
 
-                // Level complete conditions:
-                // 1. Game has been running for at least 30 seconds
-                // 2. HUD was previously detected (confirms gameplay was happening)
-                // 3. HUD has been absent for several consecutive checks (intermission screen)
-                if (elapsed > 30 && hudDetectedCount > 5 && noHudCount >= 3) {
-                    onLevelComplete('auto');
-                }
+            // Status display
+            if (elapsed < 10) {
+                detectionStatus.textContent = 'HUD scan: warming up...';
+            } else if (hudPresentCount < 3) {
+                detectionStatus.textContent = `HUD scan: looking for status bar... (grey: ${(greyRatio*100).toFixed(1)}%)`;
+            } else if (hudAbsentCount > 0) {
+                detectionStatus.textContent = `HUD scan: status bar GONE (${hudAbsentCount}/4) — completing...`;
+            } else {
+                detectionStatus.textContent = `HUD scan: playing (grey: ${(greyRatio*100).toFixed(1)}%, confirmed: ${hudPresentCount})`;
+            }
 
-                // Update status display
-                if (elapsed < 30) {
-                    detectionStatus.textContent = `Auto-detection: warming up (${Math.ceil(30 - elapsed)}s)...`;
-                } else if (hudDetectedCount < 5) {
-                    detectionStatus.textContent = 'Auto-detection: waiting for gameplay start...';
-                } else {
-                    detectionStatus.textContent = `Auto-detection: monitoring HUD (gameplay confirmed)`;
-                }
-
-                // Enable manual button after 45s of gameplay as fallback
-                if (elapsed > 45 && hudDetectedCount > 5 && !levelComplete) {
-                    enableManualApproval();
-                }
-
-            }, 2000); // Check every 2 seconds
-        }
+            // Manual button after 15s unconditionally
+            if (elapsed > 15 && !levelComplete) {
+                enableManualApproval();
+            }
+        }, 2000);
 
         function enableManualApproval() {
+            if (approveBtn.classList.contains('ready')) return;
             approveBtn.disabled = false;
             approveBtn.classList.add('ready');
             approveBtn.textContent = 'CONFIRM E1M1 COMPLETE';
@@ -342,37 +393,39 @@
             levelComplete = true;
             approvalSent = true;
 
-            if (checkInterval) clearInterval(checkInterval);
+            const elapsed = Math.round((Date.now() - pageLoadTime) / 1000);
 
-            // Update UI
             approveBtn.disabled = true;
             approveBtn.textContent = 'APPROVED!';
             approveBtn.classList.add('ready');
             gatePanel.classList.add('complete');
             gateTitle.textContent = 'E1M1 Complete — Pipeline Approved!';
-            gateDesc.textContent = `Detection method: ${method}. Deployment proceeding to production.`;
+            gateDesc.textContent = `${playerName} deployed to prod in ${elapsed}s. You're on the board!`;
             detectionStatus.textContent = '';
             pipelineStatus.textContent = 'PIPELINE APPROVED — DEPLOYING TO PROD';
             pipelineStatus.classList.add('approved');
 
-            // Show victory overlay briefly
+            document.getElementById('victory-text').textContent =
+                `${playerName} deployed to production!`;
             victoryOverlay.classList.add('show');
-            setTimeout(() => victoryOverlay.classList.remove('show'), 4000);
 
-            // Notify gate server
             fetch(GATE_SERVER + '/complete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    player: 'Doomguy',
+                    player: playerName,
+                    difficulty: playerDifficulty,
                     method: method,
-                    elapsed: Math.round((Date.now() - gameStartTime) / 1000)
+                    elapsed: elapsed
                 })
             }).then(r => r.json())
-              .then(data => console.log('[GATE] Server acknowledged:', data))
+              .then(data => {
+                  console.log('[GATE] Server acknowledged:', data);
+                  setTimeout(() => { window.location.href = '/'; }, 6000);
+              })
               .catch(err => {
                   console.warn('[GATE] Could not reach gate server:', err);
-                  detectionStatus.textContent = 'Warning: gate server unreachable (approval may not propagate to pipeline)';
+                  setTimeout(() => { window.location.href = '/'; }, 6000);
               });
         }
     </script>
