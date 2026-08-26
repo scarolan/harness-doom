@@ -1,0 +1,132 @@
+pipeline:
+  name: doom-booth-deploy
+  identifier: doom_booth_deploy
+  projectIdentifier: <+variable.projectIdentifier>
+  orgIdentifier: <+variable.orgIdentifier>
+  tags:
+    booth: "true"
+    doom: "true"
+  description: |
+    Conference booth pipeline: triggered by the kiosk when a player starts.
+    The DOOM gate is already running — this pipeline just waits for the player
+    to beat E1M1, then "deploys to prod" as the victory lap.
+  stages:
+    - stage:
+        name: "DOOM — Beat E1M1"
+        identifier: doom_approval_gate
+        description: "Pipeline blocked until someone beats E1M1. Rip and tear."
+        type: Custom
+        spec:
+          execution:
+            steps:
+              - step:
+                  type: ShellScript
+                  name: "Waiting for E1M1..."
+                  identifier: wait_for_doom
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          #!/bin/bash
+                          GATE_URL="${GATE_SERVER_URL:-http://doom-gate.doom.svc.cluster.local:8081}"
+                          TIMEOUT=3600
+                          INTERVAL=3
+                          ELAPSED=0
+
+                          echo "╔══════════════════════════════════════════╗"
+                          echo "║         DOOM APPROVAL GATE               ║"
+                          echo "╠══════════════════════════════════════════╣"
+                          echo "║                                          ║"
+                          echo "║   🔒 Pipeline is BLOCKED.                ║"
+                          echo "║                                          ║"
+                          echo "║   Beat E1M1 to approve deployment.       ║"
+                          echo "║                                          ║"
+                          echo "║   Polling gate every ${INTERVAL}s...              ║"
+                          echo "║                                          ║"
+                          echo "╚══════════════════════════════════════════╝"
+                          echo ""
+
+                          while [ $ELAPSED -lt $TIMEOUT ]; do
+                            RESPONSE=$(curl -s "$GATE_URL/status" 2>/dev/null)
+                            COMPLETE=$(echo "$RESPONSE" | grep -o '"complete": *true')
+
+                            if [ -n "$COMPLETE" ]; then
+                              PLAYER=$(echo "$RESPONSE" | grep -o '"player": *"[^"]*"' | cut -d'"' -f4)
+                              ELAPSED_GAME=$(echo "$RESPONSE" | grep -o '"elapsed": *[0-9]*' | grep -o '[0-9]*$')
+                              echo ""
+                              echo "╔══════════════════════════════════════════╗"
+                              echo "║         E1M1 COMPLETE! 🎉               ║"
+                              echo "╠══════════════════════════════════════════╣"
+                              echo "║                                          ║"
+                              echo "║   Player: ${PLAYER:-Doomguy}"
+                              echo "║   Time:   ${ELAPSED_GAME:-?}s"
+                              echo "║                                          ║"
+                              echo "║   Pipeline APPROVED.                     ║"
+                              echo "║   Deploying to production...             ║"
+                              echo "║                                          ║"
+                              echo "╚══════════════════════════════════════════╝"
+                              exit 0
+                            fi
+
+                            printf "  ⏳ [%4ds] Waiting for E1M1 completion...\r" $ELAPSED
+                            sleep $INTERVAL
+                            ELAPSED=$((ELAPSED + INTERVAL))
+                          done
+
+                          echo ""
+                          echo "💀 TIMEOUT: Nobody beat E1M1 in ${TIMEOUT}s."
+                          echo "Pipeline REJECTED. Git gud."
+                          exit 1
+                    timeout: 65m
+                    environmentVariables:
+                      - name: GATE_SERVER_URL
+                        type: String
+                        value: <+variable.gateServerUrl>
+
+    - stage:
+        name: "Deploy to Prod 🚀"
+        identifier: deploy_prod
+        description: "Victory lap — the deployment goes through."
+        type: Custom
+        spec:
+          execution:
+            steps:
+              - step:
+                  type: ShellScript
+                  name: "Deploy"
+                  identifier: deploy
+                  spec:
+                    shell: Bash
+                    source:
+                      type: Inline
+                      spec:
+                        script: |
+                          #!/bin/bash
+                          echo "╔══════════════════════════════════════════╗"
+                          echo "║       PRODUCTION DEPLOYMENT              ║"
+                          echo "╠══════════════════════════════════════════╣"
+                          echo "║                                          ║"
+                          echo "║   ✅ E1M1 beaten.                        ║"
+                          echo "║   ✅ Approval gate passed.               ║"
+                          echo "║   ✅ Deploying to production...           ║"
+                          echo "║                                          ║"
+                          echo "╚══════════════════════════════════════════╝"
+                          echo ""
+
+                          # Simulate a deploy (replace with real deploy steps for your demo)
+                          echo "Pushing to production namespace..."
+                          sleep 2
+                          echo "Verifying health checks..."
+                          sleep 1
+                          echo ""
+                          echo "╔══════════════════════════════════════════╗"
+                          echo "║       DEPLOYMENT COMPLETE 🎉             ║"
+                          echo "╠══════════════════════════════════════════╣"
+                          echo "║                                          ║"
+                          echo "║   The deployment is live.                ║"
+                          echo "║   Because governance should be fun.      ║"
+                          echo "║                                          ║"
+                          echo "╚══════════════════════════════════════════╝"
+                    timeout: 2m
