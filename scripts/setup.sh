@@ -29,6 +29,7 @@ helm upgrade --install "$RELEASE_NAME" helm/harness-doom \
   --namespace "$NAMESPACE" \
   --set image.repository="$IMAGE_NAME" \
   --set image.tag="$IMAGE_TAG" \
+  --set image.pullPolicy=Never \
   --set namespace="$NAMESPACE" \
   --wait --timeout 60s
 
