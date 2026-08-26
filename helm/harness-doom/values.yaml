@@ -1,9 +1,15 @@
 replicaCount: 1
 
 image:
-  repository: harness-doom
+  repository: doom-wasm
   tag: latest
   pullPolicy: IfNotPresent
+
+gateServer:
+  image:
+    repository: doom-gate-server
+    tag: latest
+    pullPolicy: IfNotPresent
 
 imagePullSecrets: []
 
@@ -12,13 +18,30 @@ service:
   port: 80
   targetPort: 8080
   nodePort: 30666
+  gateNodePort: 30667
 
 resources:
-  limits:
-    cpu: 100m
-    memory: 64Mi
-  requests:
-    cpu: 50m
-    memory: 32Mi
+  game:
+    limits:
+      cpu: 100m
+      memory: 64Mi
+    requests:
+      cpu: 50m
+      memory: 32Mi
+  gateServer:
+    limits:
+      cpu: 50m
+      memory: 32Mi
+    requests:
+      cpu: 25m
+      memory: 16Mi
 
 namespace: doom
+
+harness:
+  apiKey: ""
+  accountId: ""
+  orgId: ""
+  projectId: ""
+  pipelineId: "doom_booth_deploy"
+  baseUrl: "https://app.harness.io"

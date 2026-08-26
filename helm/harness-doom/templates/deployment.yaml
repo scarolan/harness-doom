@@ -40,4 +40,55 @@ spec:
             initialDelaySeconds: 3
             periodSeconds: 5
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.resources.game | nindent 12 }}
+        - name: gate-server
+          image: "{{ .Values.gateServer.image.repository }}:{{ .Values.gateServer.image.tag }}"
+          imagePullPolicy: {{ .Values.gateServer.image.pullPolicy }}
+          ports:
+            - name: gate
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: DATA_DIR
+              value: /data
+            - name: PORT
+              value: "8081"
+            {{- if .Values.harness.apiKey }}
+            - name: HARNESS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "harness-doom.fullname" . }}-harness
+                  key: api-key
+            {{- end }}
+            - name: HARNESS_ACCOUNT_ID
+              value: {{ .Values.harness.accountId | quote }}
+            - name: HARNESS_ORG_ID
+              value: {{ .Values.harness.orgId | quote }}
+            - name: HARNESS_PROJECT_ID
+              value: {{ .Values.harness.projectId | quote }}
+            - name: HARNESS_PIPELINE_ID
+              value: {{ .Values.harness.pipelineId | quote }}
+            {{- if .Values.harness.baseUrl }}
+            - name: HARNESS_BASE_URL
+              value: {{ .Values.harness.baseUrl | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: leaderboard-data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: gate
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: gate
+            initialDelaySeconds: 1
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.gateServer | nindent 12 }}
+      volumes:
+        - name: leaderboard-data
+          emptyDir: {}

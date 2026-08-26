@@ -13,5 +13,10 @@ spec:
       nodePort: {{ .Values.service.nodePort }}
       protocol: TCP
       name: http
+    - port: 8081
+      targetPort: 8081
+      nodePort: {{ .Values.service.gateNodePort }}
+      protocol: TCP
+      name: gate
   selector:
     {{- include "harness-doom.selectorLabels" . | nindent 4 }}
