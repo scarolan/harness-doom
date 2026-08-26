@@ -1,15 +1,15 @@
 # DOOM - Deployed by Harness
 
 <p align="center">
-  <img src="screenshots/doom-title.png" width="400" alt="DOOM Title Screen">
-  <img src="screenshots/doom-gameplay.png" width="400" alt="DOOM Gameplay">
+  <img src="screenshots/doom0.png" width="400" alt="DOOM Title Screen">
+  <img src="screenshots/doom1.png" width="400" alt="DOOM Gameplay">
 </p>
 
 > "Will it run DOOM?" — Every engineer, at every company, since 1993.
 
 Yes. Yes it will. This repo deploys a fully playable DOOM (1993 shareware) to a Kubernetes cluster using a [Harness](https://harness.io) CI/CD pipeline.
 
-The container packages the original DOOM shareware in a browser-playable format (via [js-dos](https://js-dos.com)) served by nginx. The Harness pipeline builds the container, pushes it to a registry, deploys to dev, runs a smoke test, gates on manual approval, and promotes to prod.
+The container packages the original DOOM shareware compiled to WebAssembly (via [Chocolate Doom](https://www.chocolate-doom.org/) + Emscripten) served by nginx. WASD + mouse controls, E1M1 music, native speed. The Harness pipeline builds the container, pushes it to a registry, deploys to dev, runs a smoke test, gates on manual approval, and promotes to prod.
 
 ```
 commit → build container → push to registry → deploy to dev → smoke test → approval gate → deploy to prod
@@ -87,9 +87,13 @@ Then open `http://<node-ip>:30666` and play DOOM.
 
 ```
 app/
-├── index.html      # Browser UI - loads js-dos, renders DOOM
-├── nginx.conf      # Web server config with /healthz endpoint
-├── Dockerfile      # Multi-stage: downloads shareware → bundles → serves
+├── index.html          # Browser UI - WASM DOOM with WASD + music
+├── nginx.conf          # Web server config with /healthz endpoint
+├── Dockerfile          # Serves pre-built WASM + assets via nginx
+├── Dockerfile.wasm-gate # Full from-source WASM build (CI)
+├── wasm-artifacts/     # Pre-built doom.js + doom.wasm
+├── default.cfg         # WASD key bindings + mouse config
+├── e1m1.mp3            # E1M1 soundtrack
 └── .dockerignore
 
 helm/harness-doom/  # Helm chart for k8s deployment
@@ -106,12 +110,7 @@ scripts/
 └── smoke-test.sh   # Validates the deployment works
 ```
 
-The Dockerfile does the heavy lifting:
-1. Downloads DOOM shareware v1.9 (freely distributable, ~4MB WAD + EXE)
-2. Creates a `.jsdos` bundle (DOSBox-in-WebAssembly game package)
-3. Packages everything in an nginx container
-
-At runtime, the browser loads js-dos from CDN, which emulates DOSBox in WebAssembly, and runs the original DOOM.EXE with the shareware WAD. Full game, in a browser, deployed by a CI/CD pipeline.
+The Dockerfile packages pre-built WebAssembly artifacts (Chocolate Doom compiled with Emscripten) into an nginx container. At runtime, the browser loads the WASM binary directly — no emulation layer, no DOSBox, no CDN dependencies. Native DOOM engine running at full speed in your browser, deployed by a CI/CD pipeline.
 
 ## Customization
 
@@ -139,7 +138,7 @@ Because every platform must answer the question. And because deploying a game fr
 - Progressive delivery (dev → approval → prod)
 - GitOps trigger (push to main → pipeline fires)
 
-All for a 32-year-old game that runs in DOSBox emulated in WebAssembly served by nginx deployed by Helm orchestrated by Harness triggered by a git push.
+All for a 32-year-old game compiled to WebAssembly served by nginx deployed by Helm orchestrated by Harness triggered by a git push.
 
 ## "But does it actually *run* DOOM?"
 
