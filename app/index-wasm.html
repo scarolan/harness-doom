@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOOM Gate — Beat E1M1 to Approve</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a1a;
+            color: #e0e0e0;
+            font-family: 'Courier New', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .header {
+            text-align: center;
+            padding: 20px;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            color: #ff4444;
+            text-shadow: 0 0 10px #ff0000, 0 0 20px #cc0000;
+            letter-spacing: 4px;
+        }
+        .header p {
+            color: #888;
+            margin-top: 8px;
+            font-size: 0.9em;
+        }
+        .pipeline-status {
+            display: inline-block;
+            background: #ff8c00;
+            color: white;
+            padding: 6px 14px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            margin-top: 10px;
+            animation: pulse 2s infinite;
+        }
+        .pipeline-status.approved {
+            background: #00c853;
+            animation: none;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        #canvas {
+            width: 800px;
+            height: 500px;
+            border: 2px solid #ff4444;
+            box-shadow: 0 0 20px rgba(255, 68, 68, 0.3);
+            cursor: crosshair;
+            image-rendering: pixelated;
+        }
+        .gate-panel {
+            margin-top: 15px;
+            padding: 15px 25px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            text-align: center;
+            max-width: 800px;
+            width: 100%;
+        }
+        .gate-panel h3 {
+            color: #ff8c00;
+            margin-bottom: 8px;
+        }
+        .gate-panel.complete h3 {
+            color: #00c853;
+        }
+        .gate-panel p {
+            color: #aaa;
+            font-size: 0.85em;
+            margin-bottom: 10px;
+        }
+        #approve-btn {
+            background: #444;
+            color: #888;
+            border: 1px solid #555;
+            padding: 10px 24px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            border-radius: 4px;
+            cursor: not-allowed;
+            transition: all 0.3s;
+        }
+        #approve-btn.ready {
+            background: #00c853;
+            color: #fff;
+            border-color: #00c853;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 200, 83, 0.4);
+        }
+        #approve-btn.ready:hover {
+            background: #00e676;
+            transform: scale(1.05);
+        }
+        #approve-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .controls {
+            margin-top: 15px;
+            color: #666;
+            font-size: 0.8em;
+            text-align: center;
+        }
+        .controls kbd {
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 3px;
+            padding: 2px 6px;
+            margin: 0 2px;
+        }
+        #music-toggle {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid #555;
+            border-radius: 4px;
+            color: #ccc;
+            font-size: 1.4em;
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.2s;
+        }
+        #music-toggle:hover {
+            border-color: #ff4444;
+            color: #fff;
+        }
+        #music-toggle.muted {
+            opacity: 0.5;
+        }
+        .victory-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .victory-overlay.show {
+            display: flex;
+        }
+        .victory-overlay h2 {
+            color: #00c853;
+            font-size: 3em;
+            text-shadow: 0 0 20px #00c853;
+            margin-bottom: 10px;
+        }
+        .victory-overlay p {
+            color: #ccc;
+            font-size: 1.2em;
+        }
+        .footer {
+            margin-top: 20px;
+            padding: 15px;
+            text-align: center;
+            color: #555;
+            font-size: 0.75em;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444;
+            font-size: 1.2em;
+            text-align: center;
+        }
+        .game-container {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>DOOM</h1>
+        <p>Pipeline Approval Gate: Beat E1M1 to deploy to production</p>
+        <span class="pipeline-status" id="pipeline-status">PIPELINE WAITING — BEAT E1M1 TO APPROVE</span>
+    </div>
+
+    <div class="game-container">
+        <button id="music-toggle" title="Toggle music">&#9835;</button>
+        <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+        <div class="loading" id="loading">Loading DOOM WASM...<br><small>Click to start</small></div>
+    </div>
+
+    <div class="gate-panel" id="gate-panel">
+        <h3 id="gate-title">Pipeline Blocked — Prove Your Worth</h3>
+        <p id="gate-desc">Complete E1M1 (Hangar) to approve the deployment.</p>
+        <button id="approve-btn" disabled>WAITING FOR E1M1 COMPLETION...</button>
+    </div>
+
+    <div class="controls">
+        <p>
+            <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move |
+            <kbd>Ctrl</kbd> Fire |
+            <kbd>Space</kbd> Open Door |
+            <kbd>Shift</kbd> Run |
+            <kbd>Mouse</kbd> Turn
+        </p>
+        <p style="margin-top: 8px;">Click the game area to capture mouse/keyboard</p>
+    </div>
+
+    <div class="victory-overlay" id="victory-overlay">
+        <h2>E1M1 COMPLETE</h2>
+        <p>Pipeline approved. Deploying to production...</p>
+    </div>
+
+    <div class="footer">
+        <p>DOOM Shareware &copy; 1993 id Software | Compiled to WebAssembly via Emscripten</p>
+        <p>Beat the level. Approve the pipeline. Ship to prod.</p>
+    </div>
+
+    <script>
+        const GATE_SERVER = window.location.origin.replace(/:\d+$/, ':30669');
+        const pageLoadTime = Date.now();
+        let levelComplete = false;
+        let approvalSent = false;
+
+        const approveBtn = document.getElementById('approve-btn');
+        const gatePanel = document.getElementById('gate-panel');
+        const gateTitle = document.getElementById('gate-title');
+        const gateDesc = document.getElementById('gate-desc');
+        const pipelineStatus = document.getElementById('pipeline-status');
+        const victoryOverlay = document.getElementById('victory-overlay');
+        const loadingEl = document.getElementById('loading');
+        const canvas = document.getElementById('canvas');
+
+        window.onLevelComplete = function() {
+            if (approvalSent) return;
+            console.log('[DOOM GATE] Level complete callback fired from WASM engine!');
+            handleLevelComplete('wasm-engine');
+        };
+
+        // E1M1 Music Player (MP3)
+        var musicAudio = new Audio('/e1m1.mp3');
+        musicAudio.loop = true;
+        musicAudio.volume = 0.45;
+        var musicPlaying = false;
+
+        function startMusic() {
+            if (musicPlaying) return;
+            musicPlaying = true;
+            musicAudio.play().catch(function() {});
+        }
+
+        document.getElementById('music-toggle').addEventListener('click', function(e) {
+            e.stopPropagation();
+            musicAudio.muted = !musicAudio.muted;
+            this.classList.toggle('muted', musicAudio.muted);
+            this.style.textDecoration = musicAudio.muted ? 'line-through' : 'none';
+        });
+
+        canvas.addEventListener('click', function() {
+            canvas.requestPointerLock();
+            startMusic();
+        });
+
+        // Kill mouse Y-axis so mouse only turns (no forward/back movement).
+        canvas.addEventListener('mousemove', function(e) {
+            if (document.pointerLockElement === canvas) {
+                Object.defineProperty(e, 'movementY', { value: 0 });
+            }
+        }, true);
+
+
+        window.doStuff = function() {};
+
+        loadingEl.textContent = 'Downloading game files...';
+
+        Promise.all([
+            fetch('/doom1.wad').then(r => r.arrayBuffer()),
+            fetch('/default.cfg').then(r => r.arrayBuffer())
+        ]).then(function(files) {
+            var wadData = new Uint8Array(files[0]);
+            var cfgData = new Uint8Array(files[1]);
+            loadingEl.textContent = 'Starting DOOM engine...';
+
+            var Module = {
+                canvas: canvas,
+                arguments: ['-iwad', 'doom1.wad', '-window', '-nomusic'],
+                locateFile: function(path, dir) {
+                    if (path.endsWith('.wasm')) return '/doom.wasm';
+                    return (dir || '/') + path;
+                },
+                preRun: [function() {
+                    FS.createDataFile('/', 'doom1.wad', wadData, true, false);
+                    FS.mkdirTree('/libsdl/doom-ws-wasm');
+                    FS.createDataFile('/libsdl/doom-ws-wasm', 'default.cfg', cfgData, true, false);
+                    FS.createDataFile('/libsdl/doom-ws-wasm', 'websockets-doom.cfg', cfgData, true, false);
+                    // Verify file is there
+                    try {
+                        var data = FS.readFile('/libsdl/doom-ws-wasm/default.cfg', {encoding: 'utf8'});
+                        console.log('[PRERUN] Config written OK, length=' + data.length + ', starts with: ' + data.substring(0, 80));
+                    } catch(e) { console.log('[PRERUN] Config verify FAILED:', e); }
+                }],
+                postRun: [],
+                print: function(text) { console.log('[DOOM]', text); },
+                printErr: function(text) { console.warn('[DOOM]', text); },
+                setStatus: function(text) {
+                    if (text) {
+                        loadingEl.textContent = text;
+                        loadingEl.style.display = 'block';
+                    } else {
+                        loadingEl.style.display = 'none';
+                    }
+                },
+                totalDependencies: 0,
+                monitorRunDependencies: function(left) {
+                    Module.totalDependencies = Math.max(Module.totalDependencies, left);
+                    if (left) {
+                        Module.setStatus('Loading WASM... (' + (Module.totalDependencies - left) + '/' + Module.totalDependencies + ')');
+                    } else {
+                        Module.setStatus('');
+                    }
+                }
+            };
+            window.Module = Module;
+
+            var script = document.createElement('script');
+            script.src = '/doom.js?v=4';
+            document.body.appendChild(script);
+        }).catch(function(err) {
+            loadingEl.innerHTML = 'Failed to load game files: ' + err;
+        });
+
+        setTimeout(function() {
+            if (!levelComplete) enableManualApproval();
+        }, 300000);
+
+        // After game starts, patch key bindings in WASM memory
+        var _patchInterval = setInterval(function() {
+            if (!window.Module || !window.Module.HEAPU8) return;
+            clearInterval(_patchInterval);
+            var heap32 = Module.HEAP32;
+            var mem = Module.HEAPU8;
+            function findStr(str) {
+                var bytes = [];
+                for (var c = 0; c < str.length; c++) bytes.push(str.charCodeAt(c));
+                bytes.push(0);
+                for (var i = 0; i < mem.length - bytes.length; i++) {
+                    var match = true;
+                    for (var j = 0; j < bytes.length; j++) {
+                        if (mem[i + j] !== bytes[j]) { match = false; break; }
+                    }
+                    if (match) return i;
+                }
+                return -1;
+            }
+            function patchKey(name, newValue) {
+                var addr = findStr(name);
+                if (addr === -1) return;
+                for (var i = 0; i < heap32.length - 8; i++) {
+                    if (heap32[i] === addr) {
+                        var ptr = heap32[i + 1];
+                        if (ptr > 1024 && ptr < mem.length - 4) {
+                            heap32[ptr >> 2] = newValue;
+                            return;
+                        }
+                    }
+                }
+            }
+            patchKey('key_strafeleft', 97);
+            patchKey('key_straferight', 100);
+            patchKey('key_up', 119);
+            patchKey('key_down', 115);
+            patchKey('key_left', 172);
+            patchKey('key_right', 174);
+            patchKey('key_use', 32);
+            patchKey('mouse_sensitivity', 10);
+        }, 1000);
+
+        function enableManualApproval() {
+            if (approveBtn.classList.contains('ready')) return;
+            approveBtn.disabled = false;
+            approveBtn.classList.add('ready');
+            approveBtn.textContent = 'CONFIRM E1M1 COMPLETE';
+            approveBtn.onclick = () => handleLevelComplete('manual');
+        }
+
+        function handleLevelComplete(method) {
+            if (approvalSent) return;
+            levelComplete = true;
+            approvalSent = true;
+
+            approveBtn.disabled = true;
+            approveBtn.textContent = 'APPROVED!';
+            approveBtn.classList.add('ready');
+            gatePanel.classList.add('complete');
+            gateTitle.textContent = 'E1M1 Complete — Pipeline Approved!';
+            gateDesc.textContent = 'Deployment proceeding to production.';
+            pipelineStatus.textContent = 'PIPELINE APPROVED — DEPLOYING TO PROD';
+            pipelineStatus.classList.add('approved');
+
+            victoryOverlay.classList.add('show');
+            setTimeout(() => victoryOverlay.classList.remove('show'), 4000);
+
+            fetch(GATE_SERVER + '/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    player: 'Doomguy',
+                    method: method,
+                    elapsed: Math.round((Date.now() - pageLoadTime) / 1000)
+                })
+            }).then(r => r.json())
+              .then(data => console.log('[GATE] Server acknowledged:', data))
+              .catch(err => {
+                  console.warn('[GATE] Could not reach gate server:', err);
+                  console.warn('[GATE] gate server unreachable');
+                  approvalSent = false;
+                  levelComplete = false;
+                  enableManualApproval();
+              });
+        }
+    </script>
+</body>
+</html>

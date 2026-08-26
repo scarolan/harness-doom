@@ -1,2 +1,7 @@
 .env
 .DS_Store
+__pycache__/
+app/e1m1.mus
+app/e1m1.mid
+app/e1m1.json
+doom-wasm/

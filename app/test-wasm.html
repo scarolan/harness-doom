@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head><title>DOOM WASM Test</title></head>
+<body>
+<h1>Minimal DOOM WASM Test</h1>
+<canvas id="canvas" width="640" height="400" style="border:1px solid red;"></canvas>
+<pre id="output" style="height:300px;overflow:auto;background:#111;color:#0f0;padding:10px;"></pre>
+<script>
+var output = document.getElementById('output');
+function log(msg) { output.textContent += msg + '\n'; console.log(msg); }
+
+window.onerror = function(msg, url, line) { log('ERROR: ' + msg + ' at ' + url + ':' + line); };
+window.onunhandledrejection = function(e) { log('REJECTED: ' + e.reason); };
+
+log('Setting up Module...');
+
+var Module = {
+    canvas: document.getElementById('canvas'),
+    arguments: ['-iwad', 'doom1.wad'],
+    locateFile: function(path, dir) {
+        log('locateFile called: path=' + path + ' dir=' + dir);
+        if (path.endsWith('.wasm')) return '/doom.wasm';
+        return (dir || '/') + path;
+    },
+    preRun: [function() {
+        log('preRun called - loading WAD...');
+        FS.createPreloadedFile('/', 'doom1.wad', '/doom1.wad', true, false);
+        FS.createPreloadedFile('/', 'default.cfg', '/default.cfg', true, false);
+        log('preRun done (files queued)');
+    }],
+    postRun: [function() { log('postRun - game started!'); }],
+    print: function(text) { log('[PRINT] ' + text); },
+    printErr: function(text) { log('[ERR] ' + text); },
+    setStatus: function(text) { log('[STATUS] ' + text); },
+    onRuntimeInitialized: function() { log('Runtime initialized!'); },
+    totalDependencies: 0,
+    monitorRunDependencies: function(left) {
+        Module.totalDependencies = Math.max(Module.totalDependencies, left);
+        log('[DEPS] left=' + left + ' total=' + Module.totalDependencies);
+    }
+};
+window.Module = Module;
+log('Module defined. Testing fetch directly...');
+
+// Test if fetch works AT ALL before loading doom.js
+fetch('/doom1.wad').then(r => {
+    log('FETCH /doom1.wad: status=' + r.status + ' size=' + r.headers.get('content-length'));
+    return r.arrayBuffer();
+}).then(buf => {
+    log('FETCH /doom1.wad: arrayBuffer OK, ' + buf.byteLength + ' bytes');
+}).catch(e => {
+    log('FETCH /doom1.wad FAILED: ' + e);
+});
+
+fetch('/default.cfg').then(r => {
+    log('FETCH /default.cfg: status=' + r.status);
+    return r.arrayBuffer();
+}).then(buf => {
+    log('FETCH /default.cfg: arrayBuffer OK, ' + buf.byteLength + ' bytes');
+}).catch(e => {
+    log('FETCH /default.cfg FAILED: ' + e);
+});
+
+// Small delay then load doom.js
+setTimeout(() => {
+    log('Now loading doom.js...');
+    var s = document.createElement('script');
+    s.src = '/doom.js';
+    s.onload = function() { log('doom.js script loaded.'); };
+    s.onerror = function() { log('doom.js FAILED to load!'); };
+    document.body.appendChild(s);
+}, 100);
+</script>
+</body>
+</html>
