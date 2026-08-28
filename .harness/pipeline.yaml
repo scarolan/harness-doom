@@ -71,7 +71,7 @@ pipeline:
             environmentRef: dev
             deployToAll: false
             infrastructureDefinitions:
-              - identifier: demo_scarolan
+              - identifier: doom_dev_infra
           execution:
             steps:
               - step:
@@ -164,7 +164,7 @@ pipeline:
             environmentRef: prod
             deployToAll: false
             infrastructureDefinitions:
-              - identifier: demo_scarolan_prod
+              - identifier: doom_prod_infra
           execution:
             steps:
               - step:
