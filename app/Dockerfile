@@ -2,6 +2,7 @@ FROM nginx:1.27-alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY index.html /usr/share/nginx/html/index.html
+COPY favicon.png /usr/share/nginx/html/favicon.png
 COPY DOOM1.WAD /usr/share/nginx/html/doom1.wad
 COPY default.cfg /usr/share/nginx/html/default.cfg
 COPY wasm-artifacts/doom.js /usr/share/nginx/html/doom.js

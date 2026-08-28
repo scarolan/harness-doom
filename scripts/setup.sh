@@ -44,6 +44,11 @@ helm upgrade --install "$RELEASE_NAME" helm/harness-doom \
   --set namespace="$NAMESPACE" \
   --wait --timeout 60s
 
+# Force rollout restart to ensure Kubernetes pulls/loads the newly built mutable image tag (latest)
+echo "Forcing deployment rollout restart to load the new image..."
+kubectl rollout restart deployment/"$RELEASE_NAME" -n "$NAMESPACE"
+kubectl rollout status deployment/"$RELEASE_NAME" -n "$NAMESPACE"
+
 echo ""
 echo "=== DOOM IS DEPLOYED ==="
 echo ""
