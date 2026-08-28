@@ -42,6 +42,12 @@ pipeline:
         name: Deploy to Dev
         identifier: deploy_dev
         type: Deployment
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: Ignore
         spec:
           deploymentType: NativeHelm
           service:
@@ -123,13 +129,21 @@ pipeline:
                       userGroups:
                         - _project_all_users
                       minimumCount: 1
+                      disallowPipelineExecutor: false
                     approverInputs: []
+                    includePipelineExecutionHistory: true
                     message: "DOOM has been deployed to dev and smoke tests pass. Approve deployment to production?"
                     timeout: 1d
     - stage:
         name: Deploy to Prod
         identifier: deploy_prod
         type: Deployment
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: Ignore
         spec:
           deploymentType: NativeHelm
           service:
