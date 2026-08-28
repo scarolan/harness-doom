@@ -41,5 +41,5 @@ To allow multiple environments (Dev, Prod, Staging) or multiple applications (Do
 ### ✦ Dynamic Environment Smoke Testing
 * Always construct smoke-test endpoints dynamically using Harness-native stage/infra context variables. Avoid hardcoding service URLs or custom shell fallback logic:
   ```bash
-  SVC_URL="http://<+stage.infra.releaseName>.<+stage.infra.namespace>.svc.cluster.local"
+  SVC_URL="http://<+infra.releaseName>.<+infra.namespace>.svc.cluster.local"
   ```

@@ -45,12 +45,6 @@ pipeline:
         name: Deploy to Dev
         identifier: deploy_dev
         type: Deployment
-        failureStrategies:
-          - onFailure:
-              errors:
-                - AllErrors
-              action:
-                type: Ignore
         spec:
           deploymentType: Kubernetes
           service:
@@ -93,7 +87,7 @@ pipeline:
                         script: |
                           echo "Waiting for DOOM to be ready..."
                           sleep 10
-                          SVC_URL="http://<+stage.infra.releaseName>.<+stage.infra.namespace>.svc.cluster.local"
+                          SVC_URL="http://<+infra.releaseName>.<+infra.namespace>.svc.cluster.local"
                           for i in $(seq 1 5); do
                             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SVC_URL/healthz" 2>/dev/null || echo "000")
                             if [ "$STATUS" = "200" ]; then
@@ -138,12 +132,6 @@ pipeline:
         name: Deploy to Prod
         identifier: deploy_prod
         type: Deployment
-        failureStrategies:
-          - onFailure:
-              errors:
-                - AllErrors
-              action:
-                type: Ignore
         spec:
           deploymentType: Kubernetes
           service:
