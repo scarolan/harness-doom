@@ -1,0 +1,45 @@
+service:
+  name: doom-svc
+  identifier: doom_svc
+  orgIdentifier: sandbox
+  projectIdentifier: harness_demo_seanc
+  serviceDefinition:
+    type: Kubernetes
+    spec:
+      manifests:
+        - manifest:
+            identifier: doom_helm
+            type: HelmChart
+            spec:
+              store:
+                type: Github
+                spec:
+                  connectorRef: github_doom
+                  gitFetchType: Branch
+                  folderPath: helm/harness-doom
+                  repoName: scarolan/harness-doom
+                  branch: main
+              helmVersion: V3
+              skipResourceVersioning: false
+              enableDeclarativeRollback: false
+        - manifest:
+            identifier: values_override
+            type: Values
+            spec:
+              store:
+                type: Inline
+                spec:
+                  content: |
+                    image:
+                      repository: carolanio/harness-doom
+                      tag: <+artifact.tag>
+      artifacts:
+        primary:
+          primaryArtifactRef: doom_image
+          sources:
+            - identifier: doom_image
+              spec:
+                connectorRef: dockerhub
+                imagePath: carolanio/harness-doom
+                tag: <+input>
+              type: DockerRegistry
