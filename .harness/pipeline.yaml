@@ -96,10 +96,10 @@ pipeline:
                           SVC_URL="http://<+infra.releaseName>.<+infra.namespace>.svc.cluster.local"
                           echo "Testing DOOM at: ${SVC_URL}"
                           for i in $(seq 1 15); do
-                            STATUS=$(curl -v -s -o /dev/null -w "%{http_code}" "$SVC_URL/healthz" 2>&1 || echo "000")
+                            STATUS=$(curl --noproxy "*" -s -o /dev/null -w "%{http_code}" "$SVC_URL/healthz" 2>/dev/null || echo "000")
                             if [ "$STATUS" = "200" ]; then
                               echo "DOOM is running! Health check passed."
-                              curl -s "$SVC_URL" | grep -qi "doom" && echo "DOOM page verified!" && exit 0
+                              curl --noproxy "*" -s "$SVC_URL" | grep -qi "doom" && echo "DOOM page verified!" && exit 0
                             fi
                             echo "Attempt $i: status=$STATUS, retrying..."
                             sleep 5
