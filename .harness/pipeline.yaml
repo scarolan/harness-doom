@@ -52,7 +52,7 @@ pipeline:
               action:
                 type: Ignore
         spec:
-          deploymentType: NativeHelm
+          deploymentType: Kubernetes
           service:
             serviceRef: doom_svc
             serviceInputs:
@@ -75,11 +75,12 @@ pipeline:
           execution:
             steps:
               - step:
-                  type: HelmDeploy
+                  type: K8sRollingDeploy
                   name: Deploy
                   identifier: helm_deploy
                   spec:
                     timeout: 5m
+                    skipDryRun: false
               - step:
                   type: ShellScript
                   name: Smoke Test
@@ -111,7 +112,7 @@ pipeline:
                     timeout: 2m
             rollbackSteps:
               - step:
-                  type: HelmRollback
+                  type: K8sRollingRollback
                   name: Rollback
                   identifier: rollback
                   spec:
@@ -148,7 +149,7 @@ pipeline:
               action:
                 type: Ignore
         spec:
-          deploymentType: NativeHelm
+          deploymentType: Kubernetes
           service:
             serviceRef: doom_svc
             serviceInputs:
@@ -171,14 +172,15 @@ pipeline:
           execution:
             steps:
               - step:
-                  type: HelmDeploy
+                  type: K8sRollingDeploy
                   name: Deploy
                   identifier: helm_deploy_prod
                   spec:
                     timeout: 5m
+                    skipDryRun: false
             rollbackSteps:
               - step:
-                  type: HelmRollback
+                  type: K8sRollingRollback
                   name: Rollback
                   identifier: rollback_prod
                   spec:
