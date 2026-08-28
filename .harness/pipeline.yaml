@@ -51,7 +51,7 @@ pipeline:
             serviceRef: doom_svc
             serviceInputs:
               serviceDefinition:
-                type: NativeHelm
+                type: Kubernetes
                 spec:
                   artifacts:
                     primary:
@@ -138,7 +138,7 @@ pipeline:
             serviceRef: doom_svc
             serviceInputs:
               serviceDefinition:
-                type: NativeHelm
+                type: Kubernetes
                 spec:
                   artifacts:
                     primary:
