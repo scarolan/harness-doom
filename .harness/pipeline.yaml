@@ -24,7 +24,7 @@ pipeline:
             type: KubernetesDirect
             spec:
               connectorRef: k8s_local
-              namespace: harness-builds
+              namespace: harness-ci
               automountServiceAccountToken: true
           execution:
             steps:
