@@ -95,7 +95,7 @@ pipeline:
                           sleep 10
                           SVC_URL="http://<+infra.releaseName>.<+infra.namespace>.svc.cluster.local"
                           echo "Testing DOOM at: ${SVC_URL}"
-                          for i in $(seq 1 5); do
+                          for i in $(seq 1 15); do
                             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SVC_URL/healthz" 2>/dev/null || echo "000")
                             if [ "$STATUS" = "200" ]; then
                               echo "DOOM is running! Health check passed."
