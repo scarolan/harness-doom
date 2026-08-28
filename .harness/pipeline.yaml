@@ -86,6 +86,8 @@ pipeline:
                   name: Smoke Test
                   identifier: smoke_test
                   spec:
+                    delegateSelectors:
+                      - demo-delegate
                     shell: Bash
                     source:
                       type: Inline
