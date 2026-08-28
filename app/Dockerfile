@@ -9,7 +9,8 @@ COPY wasm-artifacts/doom.wasm /usr/share/nginx/html/doom.wasm
 COPY e1m1.mp3 /usr/share/nginx/html/e1m1.mp3
 
 RUN chown -R nginx:nginx /var/cache/nginx /var/log/nginx /etc/nginx/conf.d && \
-    touch /var/run/nginx.pid && chown nginx:nginx /var/run/nginx.pid
+    sed -i 's|/run/nginx.pid|/tmp/nginx.pid|g' /etc/nginx/nginx.conf || true && \
+    touch /tmp/nginx.pid && chown nginx:nginx /tmp/nginx.pid
 
 EXPOSE 8080
 USER nginx

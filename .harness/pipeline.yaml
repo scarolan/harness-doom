@@ -83,7 +83,11 @@ pipeline:
                         script: |
                           echo "Waiting for DOOM to be ready..."
                           sleep 10
-                          SVC_URL="http://harness-doom.doom.svc.cluster.local"
+                          NAMESPACE="<+infra.namespace>"
+                          if [ -z "$NAMESPACE" ] || [[ "$NAMESPACE" == *"+"* ]]; then
+                            NAMESPACE="doom"
+                          fi
+                          SVC_URL="http://harness-doom.${NAMESPACE}.svc.cluster.local"
                           for i in $(seq 1 5); do
                             STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$SVC_URL/healthz" 2>/dev/null || echo "000")
                             if [ "$STATUS" = "200" ]; then
