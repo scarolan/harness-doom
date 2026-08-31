@@ -57,6 +57,8 @@ pipeline:
                         level: info
                       fail_on_severity: critical
                     privileged: true
+                    tool:
+                      args: "--db-repository ghcr.io/aquasecurity/trivy-db --java-db-repository ghcr.io/aquasecurity/trivy-java-db"
                     image:
                       type: docker_v2
                       name: carolanio/harness-doom
