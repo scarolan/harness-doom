@@ -1,5 +1,8 @@
 FROM nginx:1.27-alpine
 
+RUN sed -i 's|https://|http://|' /etc/apk/repositories && \
+    apk update && apk upgrade --no-cache libcrypto3 libssl3
+
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY index.html /usr/share/nginx/html/index.html
 COPY favicon.png /usr/share/nginx/html/favicon.png
