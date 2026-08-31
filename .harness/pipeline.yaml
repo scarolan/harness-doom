@@ -41,6 +41,29 @@ pipeline:
                     dockerfile: app/Dockerfile
                     context: app
                     timeout: 15m
+              - step:
+                  type: AquaTrivy
+                  name: Security Scan
+                  identifier: security_scan
+                  spec:
+                    mode: orchestration
+                    config: default
+                    target:
+                      type: container
+                      name: harness-doom
+                      variant: <+pipeline.sequenceId>
+                    advanced:
+                      log:
+                        level: info
+                      fail_on_severity: critical
+                    privileged: true
+                    image:
+                      type: docker_v2
+                      name: carolanio/harness-doom
+                      tag: build-<+pipeline.sequenceId>
+                      domain: docker.io
+                    sbom:
+                      format: spdx-json
     - stage:
         name: Deploy to Dev
         identifier: deploy_dev
