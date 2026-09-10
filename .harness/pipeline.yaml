@@ -1,8 +1,8 @@
 pipeline:
-  name: doom-deploy
+  name: Doom Deploy
   identifier: doom_deploy
-  projectIdentifier: <+variable.projectIdentifier>
-  orgIdentifier: <+variable.orgIdentifier>
+  projectIdentifier: harness_demo_seanc
+  orgIdentifier: sandbox
   tags: {}
   properties:
     ci:
