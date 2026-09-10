@@ -1,6 +1,6 @@
 service:
-  name: doom-svc
-  identifier: doom_svc
+  name: Doom Demo
+  identifier: doom_demo
   orgIdentifier: sandbox
   projectIdentifier: harness_demo_seanc
   serviceDefinition:

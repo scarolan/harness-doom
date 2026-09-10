@@ -80,7 +80,7 @@ pipeline:
         spec:
           deploymentType: Kubernetes
           service:
-            serviceRef: doom_svc
+            serviceRef: doom_demo
             serviceInputs:
               serviceDefinition:
                 type: Kubernetes
@@ -176,7 +176,7 @@ pipeline:
         spec:
           deploymentType: Kubernetes
           service:
-            serviceRef: doom_svc
+            serviceRef: doom_demo
             serviceInputs:
               serviceDefinition:
                 type: Kubernetes
