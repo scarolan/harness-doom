@@ -1,14 +1,14 @@
 pipeline:
   name: Doom Deploy
   identifier: doom_deploy
-  projectIdentifier: harness_demo_seanc
-  orgIdentifier: sandbox
+  projectIdentifier: web_apps
+  orgIdentifier: acme_corp
   tags: {}
   properties:
     ci:
       codebase:
-        connectorRef: github_doom
-        repoName: harness-doom
+        connectorRef: org.github
+        repoName: scarolan/harness-doom
         build:
           type: branch
           spec:
@@ -23,7 +23,7 @@ pipeline:
           infrastructure:
             type: KubernetesDirect
             spec:
-              connectorRef: k8s_local
+              connectorRef: org.k8s_local
               namespace: harness-ci
               automountServiceAccountToken: true
           execution:
@@ -33,7 +33,7 @@ pipeline:
                   name: Build and Push
                   identifier: build_and_push
                   spec:
-                    connectorRef: dockerhub
+                    connectorRef: org.dockerhub
                     repo: carolanio/harness-doom
                     tags:
                       - build-<+pipeline.sequenceId>
@@ -80,7 +80,7 @@ pipeline:
         spec:
           deploymentType: Kubernetes
           service:
-            serviceRef: doom_demo
+            serviceRef: doom
             serviceInputs:
               serviceDefinition:
                 type: Kubernetes
@@ -113,7 +113,7 @@ pipeline:
                   identifier: smoke_test
                   spec:
                     delegateSelectors:
-                      - demo-delegate
+                      - acme-delegate
                     shell: Bash
                     source:
                       type: Inline
@@ -176,7 +176,7 @@ pipeline:
         spec:
           deploymentType: Kubernetes
           service:
-            serviceRef: doom_demo
+            serviceRef: doom
             serviceInputs:
               serviceDefinition:
                 type: Kubernetes

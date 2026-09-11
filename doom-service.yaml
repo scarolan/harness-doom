@@ -1,8 +1,8 @@
 service:
-  name: Doom Demo
-  identifier: doom_demo
-  orgIdentifier: sandbox
-  projectIdentifier: harness_demo_seanc
+  name: Doom
+  identifier: doom
+  orgIdentifier: acme_corp
+  projectIdentifier: web_apps
   serviceDefinition:
     type: Kubernetes
     spec:
@@ -14,7 +14,7 @@ service:
               store:
                 type: Github
                 spec:
-                  connectorRef: github_doom
+                  connectorRef: org.github
                   gitFetchType: Branch
                   folderPath: helm/harness-doom
                   repoName: scarolan/harness-doom
@@ -39,7 +39,7 @@ service:
           sources:
             - identifier: doom_image
               spec:
-                connectorRef: dockerhub
+                connectorRef: org.dockerhub
                 imagePath: carolanio/harness-doom
                 tag: <+input>
               type: DockerRegistry
