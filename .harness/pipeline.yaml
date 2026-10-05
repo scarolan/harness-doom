@@ -156,6 +156,7 @@ pipeline:
                   spec:
                     approvers:
                       userGroups:
+                        - org.release_managers
                         - _project_all_users
                       minimumCount: 1
                       disallowPipelineExecutor: false
