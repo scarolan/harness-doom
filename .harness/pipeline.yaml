@@ -113,7 +113,7 @@ pipeline:
                   identifier: smoke_test
                   spec:
                     delegateSelectors:
-                      - acme-delegate
+                      - joshua-delegate
                     shell: Bash
                     source:
                       type: Inline
